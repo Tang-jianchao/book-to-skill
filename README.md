@@ -126,6 +126,8 @@ Two halves: a deterministic Python **extractor** (document → clean text + meta
 
 `/book-to-skill <path|folder|glob> [skill-name]` — plus analyze-only, generate-from-analysis, and update/fold-in modes. After a conversion, the converter can publish the skill to GitHub (private by default) so any host installs it with `npx skills add`.
 
+📚 **Library mode** — point it at an inbox once (`~/.book-to-skill/library.json`). With no path it scans pending books, skips anything already in the ledger or archive, and moves each source after a successful run. → [docs/library.md](docs/library.md)
+
 ▶️ **All modes and examples → [docs/usage.md](docs/usage.md)**
 
 💬 **In practice → [use cases](https://github.com/virgiliojr94/book-to-skill-use-cases)** — a DevEx book became a survey of 300+ engineers; a scanned PDF that stalled became [#130](https://github.com/virgiliojr94/book-to-skill/pull/130). Add yours: the account lives in your own Gist, the index takes a one-line PR.

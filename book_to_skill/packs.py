@@ -408,7 +408,7 @@ def main(argv: list[str] | None = None) -> int:
             pass
 
     parser = argparse.ArgumentParser(
-        prog="python -m book_to_skill.packs",
+        prog="packs.py",
         description="Build a topic-notes pack or a private retrieval corpus.",
     )
     parser.add_argument("path", type=Path, help="full_text.txt or the extraction workdir")

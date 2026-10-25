@@ -102,6 +102,7 @@ converter does not infer arbitrary `skills.load.extraDirs`.
 | `book_to_skill/sanitize.py` | strips zero-width / Unicode-tag-block characters from extracted text, and folds Kangxi radicals to their ideographs (see Security) |
 | `book_to_skill/triage.py` | deterministic skill-fit score and route; writes `triage.json` (see [Triage](triage.md)) |
 | `book_to_skill/packs.py` | builds the notes skeleton or the private RAG corpus for the two fallback routes |
+| `book_to_skill/library.py` | scans an ebook inbox, matches legacy conversions, archives processed sources, and keeps the SHA-256 ledger (see [Library](library.md)) |
 | `tools/discovery_tax.py` | measures token cost vs context-dump / discovery loop |
 | `tools/validate_skill.py` | checks a generated SKILL.md against host rules (`--lens claude\|copilot\|amp\|hermes\|openclaw`) |
 | `tools/validate_skill.py` | checks a generated SKILL.md against host rules (`--lens claude\|copilot\|amp\|hermes\|opencode`) |

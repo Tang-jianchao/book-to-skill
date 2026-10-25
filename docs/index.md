@@ -100,6 +100,12 @@ book-to-skill /path/to/book.pdf --mode text
 
     The skill-fit score, its thresholds, and the notes / RAG fallback routes.
 
+-   :material-library-shelves:{ .lg .middle } __[Library](library.md)__
+
+    ---
+
+    Scan an ebook inbox, skip processed books, and archive the sources.
+
 -   :material-speedometer:{ .lg .middle } __[Performance](performance.md)__
 
     ---

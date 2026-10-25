@@ -628,7 +628,7 @@ def main(argv: list[str] | None = None) -> int:
             pass
 
     parser = argparse.ArgumentParser(
-        prog="python -m book_to_skill.triage",
+        prog="triage.py",
         description="Score an extracted document for skill-fit and recommend a route.",
     )
     parser.add_argument("path", type=Path, help="full_text.txt or the extraction workdir")

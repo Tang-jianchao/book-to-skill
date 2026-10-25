@@ -42,7 +42,7 @@ Books contain crystallized expertise: frameworks, principles, and techniques tha
 
 ## Modes of Operation
 
-Five paths available. Route based on what the user asks:
+Six paths available. Route based on what the user asks:
 
 ### 1. Full Conversion (Default)
 **Trigger:** User provides one or more document/directory/glob paths without special instructions
@@ -66,8 +66,13 @@ Five paths available. Route based on what the user asks:
 
 ### 5. Triage Only / Notes / RAG
 **Trigger:** User asks "is this worth a skill?", "should this be notes?", or accepts a notes/RAG route from Step 2.4.
-**Action:** Run Steps 0–2.4, then either stop with the triage report (triage only), build a notes pack, or build a RAG pack. Do NOT run Steps 3–10.
+**Action:** Run Steps 0–2.4, then either stop with the triage report (triage only), build a notes pack, or build a RAG pack. Do NOT run Steps 3–10. When a library config is active, write the pack under its `breakdown` root (see **Library roots**).
 **Output:** `triage.json` plus, optionally, `~/book-notes/<slug>/` or `~/book-rag/<slug>/`
+
+### 6. Library Sweep (Inbox)
+**Trigger:** No document path is given but a library config exists, or the user asks "scan my ebooks", "扫描收件箱", "还有哪些书没转换", "process the inbox", or "convert the next book".
+**Action:** Resolve `SCRIPT_PATH` exactly as Step 2 does, then `SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"`. Run `"$PYTHON_BIN" "$SCRIPTS_DIR/library.py" show` to print the resolved roots, then `scan` for the pending list. Show each pending book with its size, format, and any candidate skill. Wait for the user to pick — do not batch-convert unless asked. Run the chosen book through Steps 1.5–2.4 as a normal conversion, write the output to the configured route directory, then archive the source with `library.py archive`.
+**Output:** The pending list, then the chosen book's skill or pack; the source moves to the archive and the ledger records `sha256`, route, slug, and output paths.
 
 ---
 
@@ -94,9 +99,55 @@ For **generated** book skills, prefer the user-level cross-agent root `~/.agents
 
 ---
 
+## Library roots (optional)
+
+A library setup adds an inbox and an archive around the conversion, so a run can
+start from "what have I not processed yet?" instead of a file path. The paths
+live outside this repository, in `~/.book-to-skill/library.json` (or the file
+named by `BOOK_LIBRARY_CONFIG`):
+
+```json
+{
+  "inbox": "E:\\personal\\ebook",
+  "done": "E:\\personal\\ebook\\已转换skill",
+  "skills": "E:\\personal\\book-to-skills",
+  "breakdown": "E:\\personal\\book-to-breakdown"
+}
+```
+
+`done` defaults to `<inbox>/converted`, `ledger` to `<inbox>/.book-library.json`,
+and `skills` / `breakdown` to `~/book-to-skills` / `~/book-to-breakdown` when
+not configured. Environment overrides: `BOOK_INBOX`, `BOOK_DONE`,
+`BOOK_SKILLS_HOME`, `BOOK_BREAKDOWN_HOME`, `BOOK_LEDGER`.
+
+Run these through the deployed skill's `scripts/` directory (resolve
+`SCRIPT_PATH` as in Step 2, then `SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"`):
+
+```bash
+# What are the paths? What is pending?
+"$PYTHON_BIN" "$SCRIPTS_DIR/library.py" show
+"$PYTHON_BIN" "$SCRIPTS_DIR/library.py" scan
+
+# Output directory for a route, then record the processed source
+"$PYTHON_BIN" "$SCRIPTS_DIR/library.py" path --route skill --slug <slug>
+"$PYTHON_BIN" "$SCRIPTS_DIR/library.py" archive <source> \
+  --route skill --slug <slug> --output "$SKILLS_HOME/<slug>"
+```
+
+Routes map to outputs: `skill` / `skill-lite` → `<skills>/<slug>/`, `notes` →
+`<breakdown>/notes/<slug>/`, `rag` → `<breakdown>/rag/<slug>/`. The archive
+moves the source by default (`--keep-source` copies) and is keyed by SHA-256, so
+a renamed file is still recognized as already processed. `match` compares a
+pending filename with the title in each existing `SKILL.md`; it is a suggestion
+to confirm, never an automatic archive.
+
+---
+
 ## Step 0 — Out-of-scope check
 
-If no arguments are provided, stop and respond:
+If no arguments are provided: resolve `SCRIPT_PATH` as in Step 2 and run
+`"$PYTHON_BIN" "$(dirname "$SCRIPT_PATH")/library.py" show`. If the resolved
+`inbox` exists, switch to Mode 6 (Library Sweep). Otherwise stop and respond:
 > "book-to-skill requires a supported document path, folder, or glob pattern. Usage: `book-to-skill <path-to-document-folder-or-glob>... [skill-name-slug]`"
 
 Throughout the workflow:
@@ -243,6 +294,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   PYTHON_BIN="python"
 fi
+SCRIPTS_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
 "$PYTHON_BIN" "$SCRIPT_PATH" $INPUT_PATHS --mode <BOOK_TYPE> --install-missing ask
 ```
@@ -270,7 +322,7 @@ Extraction prints a triage block and writes `<workdir>/triage.json`. Read it
 older extractor, or `--no-triage` was used), run it from the converter root:
 
 ```bash
-"$PYTHON_BIN" -m book_to_skill.triage "$WORKDIR"
+"$PYTHON_BIN" "$SCRIPTS_DIR/triage.py" "$WORKDIR"
 ```
 
 The report is deterministic; only one dimension is missing — demand. Ask both
@@ -452,6 +504,8 @@ For OpenClaw, use the active state directory's `skills/` root: `${OPENCLAW_STATE
 Hermes Agent is the one host that keeps its own personal root: it partitions personal skills by category and does not scan the cross-agent root. Use the active profile's `HERMES_HOME` and choose a category that matches the generated skill's subject. Do not construct profile paths manually. If the user selects a project-local Hermes root, run `hermes skills trust <project-root>` after generation and verify discovery with `hermes skills list`; project skills remain unavailable until the project is trusted.
 
 OpenCode scans the cross-agent `~/.agents/skills` root natively, so the generated-skill default above already serves it — no symlink and no trust step. It also reads its own managed `~/.config/opencode/skills` root and the Claude compatibility root `~/.claude/skills`; use the OpenCode-managed root only when the user asks for it. Project skills are discovered by walking up from the working directory to the git worktree, so start a new session after generation if the skill does not appear. (`~/.cache/opencode/skills` is the remote-skill download cache from `skills.urls`, not an authoring root — never write a generated skill there.)
+
+**Library mode exception.** If this run came from a library scan (Mode 6), or the resolved library config has a `skills` root, set `SKILLS_HOME` to that root and write `<slug>/` there directly. Skip the host table and the Step 10 symlink — the library folder is the product location, and the user can install from it later. State the chosen root in the report.
 
 Selection rules:
 1. Personal install: set `SKILLS_HOME` to `~/.agents/skills` (create the directory if missing). One exception, so the default does not invent a convention in someone else's house: if `~/.agents/skills` does not exist **and** the host's private root already contains skills, use the private root instead and say why in the report.
@@ -711,7 +765,17 @@ The real-directory guard is required: `ln -sfn` into an existing real directory 
 
 **Read the link back before you report anything about it.** The symlink is a claim, not a fact: fill the "Discoverable by" line from `CLAUDE_STATUS` (what is actually on disk), never from "the command was issued". **Do not hard-fail when the link is missing or is a copy** — the skill exists at the hub and every other host still finds it; the honest report is "written to `~/.agents/skills/<skill_name>`; Claude Code will not see it until the link is created", not an abort. (Windows lead, unverified: a directory junction — `mklink /J` in an elevated `cmd`, or `New-Item -ItemType Junction` in PowerShell — needs neither Developer Mode nor a symlink privilege; if you attempt it, it does not change the read-back-then-report rule.)
 
-Skip this when the user chose a host-private or project-local root (Step 5, rules 3-4).
+Skip this when the user chose a host-private or project-local root (Step 5, rules 3-4), and skip it in library mode (rule 0).
+
+**Archive the source (library runs only).** After every output file is written and Step 9.5 has passed, move the original source out of the inbox:
+
+```bash
+"$PYTHON_BIN" "$SCRIPTS_DIR/library.py" archive "<source path>" \
+  --route <skill|skill-lite|notes|rag> --slug <skill_name> \
+  --output "$SKILLS_HOME/<skill_name>"
+```
+
+`--route` must be the route this run actually took, not the one triage first suggested. For notes/RAG packs, pass the pack directory as `--output` and skip the skill-specific steps above. Use `--keep-source` only when the user wants the original left in place. **Never archive after a `blocked` verdict, an aborted run, or a failed write** — the source must stay in the inbox so the next scan offers it again.
 
 Then clean up the extraction workdir:
 
@@ -758,6 +822,7 @@ Then report to the user:
 📚 Book: <Full Title> — <Author>
 📄 Pages: ~<N> | Chapters: <N>
 🧭 Triage: <score>/100 → <verdict><if overridden: " (overridden from <verdict>)">
+📥 Source: <archived to <path> | kept in inbox (not a library run)>
 
 Files generated:
   SKILL.md         — core frameworks + index   (~X tokens)
@@ -870,13 +935,19 @@ A `notes` or `rag` verdict is a route, not a refusal. Both packs are built from
 the same extraction workdir:
 
 ```bash
-"$PYTHON_BIN" -m book_to_skill.packs "$WORKDIR" --route notes   # or --route rag
+# With a library config, let it decide the destination:
+OUT=$("$PYTHON_BIN" "$SCRIPTS_DIR/library.py" path --route notes --slug <slug>)
+"$PYTHON_BIN" "$SCRIPTS_DIR/packs.py" "$WORKDIR" --route notes --out "$OUT"
+
+# Without one (or to choose a path yourself):
+"$PYTHON_BIN" "$SCRIPTS_DIR/packs.py" "$WORKDIR" --route rag --out <dir>
 ```
 
-Defaults: `~/book-notes/<slug>/` and `~/book-rag/<slug>/` (`BOOK_NOTES_HOME` /
-`BOOK_RAG_HOME` override the root). Add `--out <dir>` to choose a path,
-`--force` to replace a non-empty directory, and `--name` to set the displayed
-title.
+Without a library config the defaults are `~/book-notes/<slug>/` and
+`~/book-rag/<slug>/` (`BOOK_NOTES_HOME` / `BOOK_RAG_HOME` override the root).
+Add `--force` to replace a non-empty directory and `--name` to set the
+displayed title. After a successful pack, archive the source with
+`library.py archive --route notes|rag --output "$OUT"` (Step 10).
 
 **Notes pack** — `README.md` (metadata + chapter map), `notes.md` (one block per
 section with claim / concept / rule / limit prompts), `quotes.md`, and

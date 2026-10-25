@@ -73,6 +73,41 @@ Full rubric, thresholds, and the JSON schema: [Triage](triage.md).
 
 ---
 
+## 📚 Library mode (inbox → skill)
+
+Give the converter an inbox once and it can answer "what have I not processed
+yet?" itself. Configuration lives in `~/.book-to-skill/library.json`:
+
+```json
+{
+  "inbox": "~/ebook",
+  "done": "~/ebook/已转换skill",
+  "skills": "~/book-to-skills",
+  "breakdown": "~/book-to-breakdown"
+}
+```
+
+Then:
+
+```bash
+# What is pending? (books already recorded or archived are not listed)
+python -m book_to_skill.library scan
+
+# Convert one; after the output is written, archive the source
+python -m book_to_skill.library archive ~/ebook/book.pdf \
+  --route skill --slug my-book --output ~/book-to-skills/my-book
+```
+
+Skills go to `<skills>/<slug>/`; notes and RAG packs go to
+`<breakdown>/notes/<slug>/` and `<breakdown>/rag/<slug>/`. The ledger is keyed
+by SHA-256, so a renamed file is still recognized as processed, and a source is
+moved only after a successful run. Books converted before library mode show up
+with a suggested skill from `match` for you to confirm.
+
+Config keys, routes, ledger semantics, and failure rules: [Library](library.md).
+
+---
+
 ## 💬 What people do with it
 
 A DevEx book became a survey applied to 300+ engineers. A scanned PDF that stalled a run became [#130](https://github.com/virgiliojr94/book-to-skill/pull/130), the early-abort fix — reported by someone who does not write software.

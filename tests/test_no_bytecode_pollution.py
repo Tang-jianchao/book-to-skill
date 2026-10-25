@@ -51,6 +51,9 @@ ENTRY_POINTS = {
         "usage: discovery_tax.py [-h] --full-text FULL_TEXT [--skill-dir SKILL_DIR]"
     ),
     "book_to_skill/cli.py": "book-to-skill · turns a document into a structured agent skill",
+    "scripts/triage.py": "usage: triage.py [-h]",
+    "scripts/packs.py": "usage: packs.py [-h]",
+    "scripts/library.py": "usage: library.py [-h]",
 }
 
 # Everything the four entry points import. Copied into the isolated deployment

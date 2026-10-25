@@ -126,6 +126,8 @@
 
 `/book-to-skill <path|folder|glob> [skill-name]` —— 另有仅分析、从分析结果生成、更新/折叠合并等模式。转换完成后，converter 可将 skill 发布到 GitHub（默认私有），任意宿主可通过 `npx skills add` 安装。
 
+📚 **图书馆模式** —— 配置一次收件箱（`~/.book-to-skill/library.json`）。不带路径运行时自动扫描待处理书籍，跳过台账或归档中已有的书；转换成功后把源文件移入归档。→ [docs/library.md](docs/library.md)
+
 ▶️ **所有模式与示例 → [docs/usage.md](docs/usage.md)**
 
 💬 **实践案例 → [use cases](https://github.com/virgiliojr94/book-to-skill-use-cases)** —— 一本 DevEx 书变成 300+ 工程师调研；一本扫描 PDF 卡住后成为 [#130](https://github.com/virgiliojr94/book-to-skill/pull/130)。欢迎添加你的案例：账号在你自己的 Gist，索引只需一行 PR。
