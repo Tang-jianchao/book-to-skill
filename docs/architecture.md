@@ -1,5 +1,5 @@
 ---
-description: "How book-to-skill is built: a deterministic Python extractor plus a spec-driven agent generator. Pipeline, component map, and the design tradeoffs behind both."
+description: "How book-to-skill is built: a deterministic Python extractor, a skill-fit triage gate, and a spec-driven agent generator. Pipeline, component map, and the design tradeoffs behind both."
 seo_title: "Architecture - How book-to-skill Extracts and Generates"
 ---
 
@@ -8,6 +8,8 @@ seo_title: "Architecture - How book-to-skill Extracts and Generates"
 book-to-skill has two halves: a **deterministic extractor** (Python) and a
 **spec-driven generator** (the agent following `SKILL.md`). The extractor turns any
 document into clean text + metadata; the agent turns that into a structured skill.
+A deterministic **triage** step sits between them, because only some sources can
+become a toolkit — the rest are better kept as notes or a retrieval corpus.
 
 ```
             ┌─────────────────────────── EXTRACTOR (Python, deterministic) ──┐
@@ -21,12 +23,22 @@ document into clean text + metadata; the agent turns that into a structured skil
             │  output → <tempdir>/book_skill_work/                            │
             │    full_text.txt   (all sources merged, source-marked)          │
             │    metadata.json   (pages, words, tokens, chapters, ToC)        │
+            │    triage.json     (score · route · signals · warnings)         │
             └────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
+            ┌─────────────────────────── TRIAGE (Python, deterministic) ─────┐
+            │  triage.py  7 weighted signals → skill · skill-lite · notes ·  │
+            │             rag · blocked; asks for reuse + decision           │
+            │  packs.py   notes → ~/book-notes/<slug>/  (skeleton + quotes)  │
+            │             rag   → ~/book-rag/<slug>/    (chunks + corpus)    │
+            └────────────────────────────────────────────────────────────────┘
+                                   │
+                            skill / skill-lite only
+                                   ▼
             ┌─────────────────────────── GENERATOR (agent, follows SKILL.md) ┐
             │  Step 1.5  ask content type → BOOK_TYPE (technical | text)      │
-            │  Step 2/2.5 extract · cost estimate · confirm                   │
+            │  Step 2/2.4 extract · triage gate · cost estimate · confirm     │
             │  Step 2.6  REPL-style probing for large books (grep/sed, no     │
             │            full re-reads)                                        │
             │  Step 3    analyze structure (title, author, chapters, ToC)     │
@@ -73,6 +85,10 @@ converter does not infer arbitrary `skills.load.extraDirs`.
    from the end).
 5. **Graceful degradation** — every format has a stdlib fallback; one bad source is
    skipped, not fatal.
+6. **Triage before generation** — extraction is cheap and deterministic, so the
+   skill-fit score runs on every extraction; the expensive generation path is
+   entered only for `skill` / `skill-lite`. Notes and RAG keep the text instead
+   of forcing it into a toolkit shape.
 
 ## Key components
 
@@ -84,6 +100,8 @@ converter does not infer arbitrary `skills.load.extraDirs`.
 | `book_to_skill/config.py` | supported extensions, output paths, dependency map |
 | `book_to_skill/dependencies.py` | optional-dependency probing + `--check` |
 | `book_to_skill/sanitize.py` | strips zero-width / Unicode-tag-block characters from extracted text, and folds Kangxi radicals to their ideographs (see Security) |
+| `book_to_skill/triage.py` | deterministic skill-fit score and route; writes `triage.json` (see [Triage](triage.md)) |
+| `book_to_skill/packs.py` | builds the notes skeleton or the private RAG corpus for the two fallback routes |
 | `tools/discovery_tax.py` | measures token cost vs context-dump / discovery loop |
 | `tools/validate_skill.py` | checks a generated SKILL.md against host rules (`--lens claude\|copilot\|amp\|hermes\|openclaw`) |
 | `tools/validate_skill.py` | checks a generated SKILL.md against host rules (`--lens claude\|copilot\|amp\|hermes\|opencode`) |

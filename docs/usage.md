@@ -40,6 +40,39 @@ In GitHub Copilot CLI you may need to run `/skills reload` after the file is wri
 
 ---
 
+## 🧭 Is this a good fit?
+
+Every run extracts first and then **triages** — extraction is cheap, generation is not. The run prints a score and a route, and writes `triage.json` next to `full_text.txt`.
+
+| Route | Meaning |
+|---|---|
+| `skill` | Framework-dense and structured; continue to a full skill |
+| `skill-lite` | Worth a partial skill (3–6 chapters), not a full pass |
+| `notes` | A chapter skeleton, quote log, and open questions — no skill |
+| `rag` | A private, heading-chunked corpus to query — no skill |
+| `re-extract` | The text is too garbled to score; fix extraction first |
+
+The scorer cannot tell how *you* will use the source, so it asks two questions:
+
+1. How often will you consult it — weekly, occasionally, or once?
+2. Will it drive decisions/work, or is it background reading?
+
+You can run or re-run the score yourself:
+
+```bash
+python -m book_to_skill.triage "$WORKDIR" --reuse high --decision high
+
+# notes skeleton: README.md, notes.md, quotes.md, questions.md
+python -m book_to_skill.packs "$WORKDIR" --route notes
+
+# private retrieval pack: corpus/full_text.txt, chunks.jsonl, index.md
+python -m book_to_skill.packs "$WORKDIR" --route rag
+```
+
+Full rubric, thresholds, and the JSON schema: [Triage](triage.md).
+
+---
+
 ## 💬 What people do with it
 
 A DevEx book became a survey applied to 300+ engineers. A scanned PDF that stalled a run became [#130](https://github.com/virgiliojr94/book-to-skill/pull/130), the early-abort fix — reported by someone who does not write software.

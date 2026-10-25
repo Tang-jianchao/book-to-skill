@@ -1,5 +1,5 @@
 ---
-description: "The full book-to-skill walkthrough, Steps 0-10: document extraction, chapter detection, framework mining, depth budgets, and how the agent skill gets assembled."
+description: "The full book-to-skill walkthrough, Steps 0-10: extraction, skill-fit triage, chapter detection, framework mining, depth budgets, and how the agent skill gets assembled."
 seo_title: "How book-to-skill Works - Book to Agent Skill, Step by Step"
 ---
 
@@ -22,9 +22,19 @@ scripts/extract.py <paths…> --mode <technical|text>
   (one bad source is skipped with a warning; the rest still process)
      │
      ├── /tmp/book_skill_work/full_text.txt   (all sources merged, with source markers)
-     └── /tmp/book_skill_work/metadata.json   (aggregated stats + per-source array)
+     ├── /tmp/book_skill_work/metadata.json   (aggregated stats + per-source array)
+     └── /tmp/book_skill_work/triage.json     (skill-fit score + route)
                │
                ▼
+          Triage — deterministic score on extracted text
+          ask once: how often consulted? decisions or background?
+               │
+               ├── skill / skill-lite ──────────────┐
+               │                                    │
+               ├── notes → ~/book-notes/<slug>/     │  (chapter skeleton, stop)
+               ├── rag   → ~/book-rag/<slug>/       │  (private chunks, stop)
+               └── blocked → fix extraction, stop   │
+                                                    ▼
           Claude analyzes structure
           (title, author, chapters, ToC — spanning all sources)
           ── or, if targeting an existing skill: folds new content in (Mode 4)
@@ -85,6 +95,9 @@ PDF every session.
 3. **Front-loaded SKILL.md** — compaction keeps the first ~5,000 tokens; the most important content comes first
 4. **On-demand chapters** — the topic index tells Claude which file to read; chapters load only when needed
 5. **Never raw text** — always synthesize, summarize, extract signal from the source
+6. **Triage before generation** — the expensive half runs only on sources that can become a toolkit; everything else keeps its text in notes or a retrieval corpus
+
+[Full triage rubric, thresholds, and routes →](triage.md)
 
 </details>
 

@@ -32,6 +32,11 @@ from book_to_skill.dependencies import (
     prepare_dependencies,
     run_dependency_check,
 )
+from book_to_skill.triage import (
+    REPORT_FILENAME as TRIAGE_REPORT_FILENAME,
+    analyze_text as analyze_triage,
+    render_report as render_triage_report,
+)
 from book_to_skill.parsers.text import read_text_file
 from book_to_skill.parsers.html import extract_html_file
 from book_to_skill.parsers.docx import extract_docx
@@ -1016,6 +1021,9 @@ def parse_arguments(argv: list[str]) -> tuple[list[str], str, str]:
                 i += 1
         elif arg == "--no-install-missing":
             i += 1
+        elif arg == "--no-triage":
+            # Triage runs by default after extraction (see _report_triage).
+            i += 1
         elif arg.startswith("-"):
             print(f"WARNING: Unknown flag '{arg}' — ignoring it.", file=sys.stderr)
             i += 1
@@ -1486,7 +1494,7 @@ def print_usage() -> None:
     """Print standalone CLI usage."""
     print(
         "Usage: book-to-skill <path-to-document-folder-or-glob>... "
-        "[--mode technical|text] [--install-missing ask|yes|no]",
+        "[--mode technical|text] [--install-missing ask|yes|no] [--no-triage]",
         file=sys.stderr,
     )
     print(
@@ -1494,6 +1502,29 @@ def print_usage() -> None:
         file=sys.stderr,
     )
     print(f"Supported formats: {supported_formats_message()}", file=sys.stderr)
+
+
+def _report_triage(text: str, metadata: dict) -> None:
+    """Score the extracted text before generation and persist the report.
+
+    Triage is advisory at this layer: an extraction that otherwise succeeded
+    must not fail because the heuristic did. The agent reads the same JSON in
+    SKILL.md Step 2.4 and asks the user to confirm the route.
+    """
+    try:
+        result = analyze_triage(text, metadata)
+        report_path = OUTPUT_DIR / TRIAGE_REPORT_FILENAME
+        report_path.write_text(
+            json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    except Exception as exc:  # noqa: BLE001 - advisory step, never fatal
+        print(f"WARNING: skill-fit triage failed: {exc}", file=sys.stderr)
+        return
+
+    print()
+    print(render_triage_report(result))
+    print(f"   Report         {report_path}")
+    print("   Next           : confirm the route before generating (SKILL.md Step 2.4).")
 
 
 def main():
@@ -1693,3 +1724,8 @@ def main():
             print(f"     - {path.name}: {err}")
     else:
         print_support_note()
+
+    # The gate between cheap extraction and expensive generation. `--no-triage`
+    # exists for scripts that only need the text and for batch re-runs.
+    if "--no-triage" not in sys.argv[1:]:
+        _report_triage(consolidated_text, metadata)

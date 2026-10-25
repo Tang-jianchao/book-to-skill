@@ -42,16 +42,16 @@ Books contain crystallized expertise: frameworks, principles, and techniques tha
 
 ## Modes of Operation
 
-Four paths available. Route based on what the user asks:
+Five paths available. Route based on what the user asks:
 
 ### 1. Full Conversion (Default)
 **Trigger:** User provides one or more document/directory/glob paths without special instructions
-**Action:** Run all steps below (Steps 0–9)
+**Action:** Run all steps below (Steps 0–10), including the Step 2.4 triage gate. If triage routes to notes or RAG, switch to Mode 5 rather than generating a skill.
 **Output:** Complete skill with SKILL.md, chapters/, glossary, patterns, cheatsheet
 
 ### 2. Analyze Only
 **Trigger:** User says "analyze", "just extract", or "I want to review before generating"
-**Action:** Run Steps 0–3, then produce a structured extraction report (frameworks, principles, techniques found). Stop — do NOT generate skill files.
+**Action:** Run Steps 0–3 (Step 2.4 included), then produce a structured extraction report (frameworks, principles, techniques found). Stop — do NOT generate skill files.
 **Output:** Analysis report for user review
 
 ### 3. Generate from Prior Analysis
@@ -63,6 +63,11 @@ Four paths available. Route based on what the user asks:
 **Trigger:** User provides one or more new source paths and indicates they want to update an existing skill (either by pointing to the existing skill folder, providing a skill slug that already exists in `SKILLS_HOME`, or explicitly requesting an update).
 **Action:** Run Step 0 (out-of-scope check), Step 1 (validate inputs), Step 1.5 (identify book type), and Step 2 (extract new files). Then skip to Step 5 (identify/detect existing skill path) and run the **Update / Fold-in Workflow** to merge the new content into the existing skill files.
 **Output:** Updated existing skill with new/revised chapter summaries and merged indexes/glossaries.
+
+### 5. Triage Only / Notes / RAG
+**Trigger:** User asks "is this worth a skill?", "should this be notes?", or accepts a notes/RAG route from Step 2.4.
+**Action:** Run Steps 0–2.4, then either stop with the triage report (triage only), build a notes pack, or build a RAG pack. Do NOT run Steps 3–10.
+**Output:** `triage.json` plus, optionally, `~/book-notes/<slug>/` or `~/book-rag/<slug>/`
 
 ---
 
@@ -258,11 +263,51 @@ Read that run's `metadata.json` to inspect the results.
 
 ---
 
+## Step 2.4 — Skill-fit triage (gate)
+
+Extraction prints a triage block and writes `<workdir>/triage.json`. Read it
+**before** the cost estimate and before any generation. If it is missing (an
+older extractor, or `--no-triage` was used), run it from the converter root:
+
+```bash
+"$PYTHON_BIN" -m book_to_skill.triage "$WORKDIR"
+```
+
+The report is deterministic; only one dimension is missing — demand. Ask both
+questions once, in a single message:
+
+> "Two quick questions before I estimate cost:
+> 1. How often will you consult this source — weekly, occasionally, or once?
+> 2. Will it drive decisions/work, or is it background reading?"
+
+Map weekly→`high`, occasionally→`medium`, once→`low`; decisions/work→`high`,
+background→`low`. Re-run with `--reuse` and `--decision` so the JSON carries the
+answers, then use the refreshed verdict.
+
+| Verdict | Action |
+|---|---|
+| `skill` | Continue to Step 2.5 (cost), then Step 3. |
+| `skill-lite` | Propose a partial skill: 3–6 chapters chosen with the user. If they agree, record the chapter scope and continue. Otherwise offer the notes pack. |
+| `notes` | Switch to Mode 5: build the notes pack (see **Fallback outputs**). Stop. |
+| `rag` | Switch to Mode 5: build the RAG pack. Stop. |
+| `blocked` | Report the blocker — usually extraction. Do not synthesize. Offer OCR, a better parser, or a different file. |
+
+**This gate is binding.** Do not continue to Steps 3–10 on a `notes`, `rag`, or
+`blocked` verdict unless the user explicitly says "override" (or equivalent).
+Record the override and the original verdict in the final report.
+
+If the report says `"provisional": true`, the two questions have not been asked
+yet — ask before acting on the verdict.
+
+---
+
 ## Step 2.5 — Pre-flight cost estimate
 
 Read this run's `metadata.json` (the `Meta ->` path from the extraction output) and present the user with an estimate **before doing any generation**:
 
 ```
+🧭 Triage: <score>/100 → <verdict> (<route>) — only `skill` / `skill-lite` reach this step
+
 📖 Sources detected: <total_sources> source(s)
 <list each source filename and format from the sources metadata list>
 <if images_dropped > 5: warn that N source images were not read>
@@ -424,7 +469,7 @@ If the skill already exists, prompt the user to choose:
 2. **Overwrite** — delete and regenerate the skill from scratch.
 3. **Rename** — append `-2` or use a different custom slug.
 
-If the user selects **Update / Fold-in**, proceed immediately to the **Update / Fold-in Workflow** section after Step 2.5 (skipping Steps 3, 4, 6, 7, 8, 9).
+If the user selects **Update / Fold-in**, run Step 2.4 on the new material first — a source that triages to `notes` or `rag` should not be folded into a skill without an explicit override — then proceed to the **Update / Fold-in Workflow** section after Step 2.5 (skipping Steps 3, 4, 6, 7, 8, 9).
 
 ---
 
@@ -712,6 +757,7 @@ Then report to the user:
 
 📚 Book: <Full Title> — <Author>
 📄 Pages: ~<N> | Chapters: <N>
+🧭 Triage: <score>/100 → <verdict><if overridden: " (overridden from <verdict>)">
 
 Files generated:
   SKILL.md         — core frameworks + index   (~X tokens)
@@ -815,6 +861,42 @@ Install on any Agent Skills host:
 ```
 
 The root-level `SKILL.md` layout is exactly what the `skills` CLI detects, so the repo is installable as-is — no restructuring needed. Outside the nested-repo case the local folder stays the live install for this machine and is the remote's working copy, so later Update/Fold-in runs can commit and push their changes to the same remote.
+
+---
+
+## Fallback outputs (notes / RAG)
+
+A `notes` or `rag` verdict is a route, not a refusal. Both packs are built from
+the same extraction workdir:
+
+```bash
+"$PYTHON_BIN" -m book_to_skill.packs "$WORKDIR" --route notes   # or --route rag
+```
+
+Defaults: `~/book-notes/<slug>/` and `~/book-rag/<slug>/` (`BOOK_NOTES_HOME` /
+`BOOK_RAG_HOME` override the root). Add `--out <dir>` to choose a path,
+`--force` to replace a non-empty directory, and `--name` to set the displayed
+title.
+
+**Notes pack** — `README.md` (metadata + chapter map), `notes.md` (one block per
+section with claim / concept / rule / limit prompts), `quotes.md`, and
+`questions.md`. The tool writes the skeleton only. Fill `notes.md` by reading
+one section at a time; keep each line a claim, rule, or question. In
+`quotes.md`, quote only when the wording matters — at most 25 words, always with
+the section number. Never paste a paragraph.
+
+**RAG pack** — `corpus/full_text.txt`, `chunks.jsonl` (stable `c0001` ids,
+`section` metadata, ~1,200-character chunks with 150-character overlap),
+`index.md` (section → chunk map and query instructions), and
+`rag_metadata.json`. Query by grepping `chunks.jsonl` first, then read only the
+matching records — do not load the whole corpus into context.
+
+**Privacy.** The RAG pack contains the source text. It is for private retrieval
+only: never publish it, commit it, or ship it with a skill. The notes pack can
+contain short quotes and inherits the same rule.
+
+After either pack is built, the extraction workdir is no longer needed; clean it
+up with the Step 10 procedure. Do not run Steps 3–11.
 
 ---
 

@@ -86,6 +86,8 @@ Running `/book-to-skill your-book.pdf` (or a folder, glob, or list of files) cre
 
 **Chapter files are loaded on-demand** — they don't count against the skill budget until you ask about that topic.
 
+Before any of that, **triage** scores the extracted text and routes the source: `skill` / `skill-lite` continue to generation, `notes` writes a chapter skeleton for your own notes, and `rag` writes a private chunked corpus to query. Every run writes `triage.json`; the two questions it asks (how often you consult the source, whether it drives decisions) take one message to answer. The rubric and routes are in [docs/triage.md](docs/triage.md).
+
 ---
 
 ## 🏢 Beyond books
@@ -98,6 +100,8 @@ The name says "book", but the input is any structured prose. The same extraction
 - **Specs & standards** — RFCs, API contracts, compliance docs you reference but never memorize.
 
 If you re-open a document often enough to wish you'd memorized it, it's a candidate.
+
+Not every document is a good fit: a novel, a memoir, or a poetry collection has no frameworks to re-apply, so a "skill" made from it is a book report that costs tokens on every load. Triage detects that before the expensive run and routes the source to topic notes or a retrieval corpus instead.
 
 ---
 
@@ -112,7 +116,7 @@ A PDF-reading agent doesn't just read — it *navigates*: it re-fetches the ToC,
 
 ## ⚙️ How it works
 
-Two halves: a deterministic Python **extractor** (document → clean text + metadata) and a spec-driven **generator** (your agent follows `SKILL.md` to turn that into a structured skill). On-demand chapter files keep the loaded skill small.
+Two halves: a deterministic Python **extractor** (document → clean text + metadata) and a spec-driven **generator** (your agent follows `SKILL.md` to turn that into a structured skill). Between them sits a **triage gate**: a deterministic score and route, plus two questions, before any generation tokens are spent. On-demand chapter files keep the loaded skill small.
 
 🔧 **Full walkthrough (Steps 0–10, extraction modes, token budgets) → [docs/how-it-works.md](docs/how-it-works.md)**
 

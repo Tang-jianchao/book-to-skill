@@ -94,6 +94,12 @@ book-to-skill /path/to/book.pdf --mode text
 
     How the deterministic extractor and the spec-driven generator fit together.
 
+-   :material-sign-direction:{ .lg .middle } __[Triage](triage.md)__
+
+    ---
+
+    The skill-fit score, its thresholds, and the notes / RAG fallback routes.
+
 -   :material-speedometer:{ .lg .middle } __[Performance](performance.md)__
 
     ---
