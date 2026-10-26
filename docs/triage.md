@@ -1,5 +1,5 @@
 ---
-description: "Skill-fit triage: score a source before generating, and route it to a skill, topic notes, or a private retrieval corpus. Rubric, thresholds, and the two questions the text cannot answer."
+description: "Skill-fit triage: score a source before generating, and route it to a skill, topic notes, or a private retrieval corpus. Rubric, thresholds, and the demand assumption the text cannot supply."
 seo_title: "Triage - Is This Book Worth an Agent Skill?"
 ---
 
@@ -17,8 +17,8 @@ every load. A 40-page runbook can produce a thin skill file and be an excellent
 one. The distinction is not literary quality. It is **structure × reuse**.
 
 Triage runs automatically at the end of extraction and writes `triage.json` in
-the extraction workdir. The agent reads it, asks two questions, and only then
-proceeds to generation.
+the extraction workdir. The agent reads it, states an explicit demand
+assumption in a preprocessing table, and only then proceeds to generation.
 
 ```bash
 # manual re-run with the two demand inputs
@@ -44,15 +44,21 @@ Text is sampled (head, middle, tail, 300k characters) so a 2M-character book
 costs the same triage time as a 100k one. Chinese and Latin text are normalized
 separately: a CJK page carries the same cues in far fewer characters.
 
-### The two questions
+### Demand: the only dimension the text cannot supply
 
-`Demand` is the only dimension the text cannot supply. The agent asks:
+`Demand` is the only dimension the text cannot supply. The default flow does
+not open a separate questionnaire: the agent infers the likely use from the
+source and the user's context, records it as an explicit assumption in the
+preprocessing table, and runs triage with the matching `--reuse` / `--decision`
+values. The user changes the assumption by choosing a different plan, or by
+answering the two questions when the report is genuinely ambiguous:
 
 1. **How often will you consult this source?** — weekly / occasionally / once
 2. **Will it drive decisions or work, or is it background reading?** — yes / no
 
-Without answers the report is marked `provisional` and confidence is `low`. That
-is deliberate: a high score on a book you will open once is still a bad skill.
+Without a demand assumption the report is marked `provisional` and confidence
+is `low`. That is deliberate: a high score on a book you will open once is still
+a bad skill.
 
 ## Thresholds and routes
 
@@ -81,6 +87,27 @@ A raw score can over-promise. These caps are deliberate and are reported in
 
 The agent may override a route only when the user explicitly says so, and the
 override is recorded in the final report.
+
+## Preprocessing report
+
+For one source or a batch, score every source first and print one table before
+asking the user to choose. Do not run a separate content-type, frequency, or
+purpose questionnaire first.
+
+| # | Source | Pages / chars | Structure | Frameworks | Actionability | Narrative | Fidelity | Volume | Demand (assumed) | Total | Recommended plan | Basis |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
+`Basis` carries the concrete signals (chapters detected, ToC yes/no, framework
+and decision cues per 10k chars, chars/page, warnings). `Demand (assumed)` is
+labelled as an assumption; `Recommended plan` is the route the thresholds and
+caps imply. List numbered choices under the table and wait for the user to reply
+with numbers (one or more books/plans). For `skill-lite`, include the proposed
+3–6 chapter scope in its numbered choice. Re-run triage with the selected plan's
+demand inputs before continuing.
+
+The binding gate still applies: `notes`, `rag`, and `blocked` are not overridden
+without an explicit user choice, and a `blocked` source is reported rather than
+scored as if it were text.
 
 ## Notes and RAG packs
 

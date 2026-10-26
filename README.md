@@ -86,7 +86,7 @@ Running `/book-to-skill your-book.pdf` (or a folder, glob, or list of files) cre
 
 **Chapter files are loaded on-demand** — they don't count against the skill budget until you ask about that topic.
 
-Before any of that, **triage** scores the extracted text and routes the source: `skill` / `skill-lite` continue to generation, `notes` writes a chapter skeleton for your own notes, and `rag` writes a private chunked corpus to query. Every run writes `triage.json`; the two questions it asks (how often you consult the source, whether it drives decisions) take one message to answer. The rubric and routes are in [docs/triage.md](docs/triage.md).
+Before any of that, **triage** scores the extracted text and routes the source: `skill` / `skill-lite` continue to generation, `notes` writes a chapter skeleton for your own notes, and `rag` writes a private chunked corpus to query. Every run writes `triage.json`; the report states an explicit demand assumption and a recommended plan, and a batch arrives as one table of scores, evidence, and recommendations for you to choose from. The rubric and routes are in [docs/triage.md](docs/triage.md).
 
 ---
 
@@ -116,7 +116,7 @@ A PDF-reading agent doesn't just read — it *navigates*: it re-fetches the ToC,
 
 ## ⚙️ How it works
 
-Two halves: a deterministic Python **extractor** (document → clean text + metadata) and a spec-driven **generator** (your agent follows `SKILL.md` to turn that into a structured skill). Between them sits a **triage gate**: a deterministic score and route, plus two questions, before any generation tokens are spent. On-demand chapter files keep the loaded skill small.
+Two halves: a deterministic Python **extractor** (document → clean text + metadata) and a spec-driven **generator** (your agent follows `SKILL.md` to turn that into a structured skill). Between them sits a **triage gate**: a deterministic score and route, plus one explicit demand assumption, before any generation tokens are spent. On-demand chapter files keep the loaded skill small.
 
 🔧 **Full walkthrough (Steps 0–10, extraction modes, token budgets) → [docs/how-it-works.md](docs/how-it-works.md)**
 

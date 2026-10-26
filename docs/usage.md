@@ -52,7 +52,14 @@ Every run extracts first and then **triages** — extraction is cheap, generatio
 | `rag` | A private, heading-chunked corpus to query — no skill |
 | `re-extract` | The text is too garbled to score; fix extraction first |
 
-The scorer cannot tell how *you* will use the source, so it asks two questions:
+The scorer cannot tell how *you* will use the source, so the report states an
+explicit demand assumption and a recommended plan. For a batch, you get one
+table with every book's dimensions, the signals behind the score, and its
+recommendation; reply with the numbers of the books/plans you want. The
+selected plan's demand inputs are then recorded in `triage.json`.
+
+If the assumption is genuinely unclear, the report says so and asks the two
+questions it cannot answer:
 
 1. How often will you consult it — weekly, occasionally, or once?
 2. Will it drive decisions/work, or is it background reading?

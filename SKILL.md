@@ -71,8 +71,8 @@ Six paths available. Route based on what the user asks:
 
 ### 6. Library Sweep (Inbox)
 **Trigger:** No document path is given but a library config exists, or the user asks "scan my ebooks", "扫描收件箱", "还有哪些书没转换", "process the inbox", or "convert the next book".
-**Action:** Resolve `SCRIPT_PATH` exactly as Step 2 does, then `SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"`. Run `"$PYTHON_BIN" "$SCRIPTS_DIR/library.py" show` to print the resolved roots, then `scan` for the pending list. Show each pending book with its size, format, and any candidate skill. Wait for the user to pick — do not batch-convert unless asked. Run the chosen book through Steps 1.5–2.4 as a normal conversion, write the output to the configured route directory, then archive the source with `library.py archive`.
-**Output:** The pending list, then the chosen book's skill or pack; the source moves to the archive and the ledger records `sha256`, route, slug, and output paths.
+**Action:** Resolve `SCRIPT_PATH` exactly as Step 2 does, then `SCRIPTS_DIR="$(dirname "$SCRIPT_PATH")"`. Run `"$PYTHON_BIN" "$SCRIPTS_DIR/library.py" show` to print the resolved roots, then `scan` for the pending list. Preprocess the pending books (Step 1.5 + Step 2 + Step 2.4) for a bounded batch, then present the single **preprocessing table** from Step 2.4: one row per book with the scored dimensions, the basis, and a recommended plan. Wait for the user to reply with numbers (one or more books/plans) — do not batch-convert before that selection. Run each selected book through the remaining steps for its chosen route, write the output to the configured route directory, then archive the source with `library.py archive`.
+**Output:** The preprocessing table, then the selected books' skills or packs; each archived source moves to the archive and the ledger records `sha256`, route, slug, and output paths.
 
 ---
 
@@ -171,18 +171,10 @@ If no supported files are found, stop with a clear error message.
 
 ## Step 1.5 — Identify content type
 
-Before extracting, ask the user:
-
-> "What kind of content do these sources have? This helps me choose the best extraction method.
->
-> 1. **Technical** — has code blocks, tables, formulas, diagrams (e.g. programming books, academic papers, architecture guides)
-> 2. **Text-heavy** — mostly prose, few or no tables/code (e.g. management, productivity, narrative non-fiction)
-> 3. **Not sure** — I'll use the fast method and warn you if quality seems limited"
-
-Store the answer as `BOOK_TYPE`:
-- Option 1 → `BOOK_TYPE=technical`
-- Option 2 → `BOOK_TYPE=text`
-- Option 3 → `BOOK_TYPE=text`
+Infer `BOOK_TYPE` from the source; do not stop to ask:
+- `technical` — the argument depends on code blocks, tables, formulas, or diagrams;
+- `text` — prose, narrative non-fiction, management, history, essays.
+If the evidence is mixed or unclear, use `text` (the fast path) and say so in the preprocessing table. Ask only when the choice materially changes extraction quality and the evidence is genuinely split.
 
 **If `BOOK_TYPE=technical`**, inform the user before proceeding:
 > "📐 Technical mode selected — using Docling for structure-aware extraction (tables, code blocks, formulas preserved as markdown). This takes ~1.5s per page, so expect a few minutes for longer sources. Starting now…"
@@ -325,31 +317,54 @@ older extractor, or `--no-triage` was used), run it from the converter root:
 "$PYTHON_BIN" "$SCRIPTS_DIR/triage.py" "$WORKDIR"
 ```
 
-The report is deterministic; only one dimension is missing — demand. Ask both
-questions once, in a single message:
+**Default flow: score first, then show one table; do not stop for a separate
+content-type / frequency / purpose questionnaire.** For every candidate source,
+run triage with an explicit demand assumption and print one preprocessing
+table:
 
-> "Two quick questions before I estimate cost:
-> 1. How often will you consult this source — weekly, occasionally, or once?
-> 2. Will it drive decisions/work, or is it background reading?"
+| # | Source | Pages / chars | Structure | Frameworks | Actionability | Narrative | Fidelity | Volume | Demand (assumed) | Total | Recommended plan | Basis |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
-Map weekly→`high`, occasionally→`medium`, once→`low`; decisions/work→`high`,
-background→`low`. Re-run with `--reuse` and `--decision` so the JSON carries the
-answers, then use the refreshed verdict.
+- Scores are the 0–100 `subscores` from that run's `triage.json`; `Total` is
+  the weighted score.
+- Run triage once with the assumed `--reuse` / `--decision` values, so `Total`
+  and the recommendation come from the same inputs. Never pair a provisional
+  demand score with a non-provisional plan.
+- `Basis` names the concrete signals behind the score: chapters detected, ToC
+  yes/no, framework cues per 10k chars, decision cues per 10k chars,
+  chars/page, narrative signal, and warnings.
+- `Demand (assumed)` is an explicit assumption, not a hidden fact. Infer the
+  most likely use from the source and the user's context (for example
+  “occasional + decisions” or “once + background”); label it as an assumption.
+- `Recommended plan` is one of `skill`, `skill-lite`, `notes`, `rag`, with a
+  one-clause reason. It follows the thresholds and caps below; do not invent a
+  route.
+- Under the table, list the numbered choices, one line each, so the user can
+  reply with numbers (one or more books/plans), for example:
+  `1. <book> → notes — narrative-heavy; once/background reads do not repay a skill`
+
+After the user selects numbers:
+- Re-run triage with `--reuse` / `--decision` matching the selected plan's
+  demand assumption, so the JSON records the real inputs.
+- If the refreshed verdict contradicts the selected plan, say so and record the
+  explicit override; otherwise continue.
 
 | Verdict | Action |
 |---|---|
 | `skill` | Continue to Step 2.5 (cost), then Step 3. |
-| `skill-lite` | Propose a partial skill: 3–6 chapters chosen with the user. If they agree, record the chapter scope and continue. Otherwise offer the notes pack. |
+| `skill-lite` | Put the proposed 3–6 chapter scope in the numbered choice. If the user selects it, record the scope and continue. Otherwise offer the notes pack. |
 | `notes` | Switch to Mode 5: build the notes pack (see **Fallback outputs**). Stop. |
 | `rag` | Switch to Mode 5: build the RAG pack. Stop. |
 | `blocked` | Report the blocker — usually extraction. Do not synthesize. Offer OCR, a better parser, or a different file. |
 
 **This gate is binding.** Do not continue to Steps 3–10 on a `notes`, `rag`, or
-`blocked` verdict unless the user explicitly says "override" (or equivalent).
-Record the override and the original verdict in the final report.
+`blocked` verdict unless the user explicitly chooses that route or says
+"override" (or equivalent). Record the choice/override and the original verdict
+in the final report.
 
-If the report says `"provisional": true`, the two questions have not been asked
-yet — ask before acting on the verdict.
+If the report says `"provisional": true` after the demand assumption is applied,
+the assumption was genuinely unclear — say which dimension is unresolved and ask
+one question, not a questionnaire.
 
 ---
 
@@ -388,7 +403,9 @@ Read this run's `metadata.json` (the `Meta ->` path from the extraction output) 
   - Per-chapter budget midpoint by `BOOK_TYPE` (DEPTH is decided later in Step 4 and can raise it): `text` ≈ 1,000, `technical` ≈ 1,800. If the user has already indicated reference-only vs deep study, use the matching row of the Step 7 matrix.
 - Cost: report the token counts and multiply by the user's current per-1M-token input/output rates. Do NOT hardcode dollar figures — model names and prices change; if you show one, label it an estimate and date it.
 
-Wait for the user to confirm before proceeding. If they say "analyze only", switch to Mode 2.
+Show this estimate for the selected plan and wait for one confirmation. Do not
+re-ask the route, content type, or demand questions — the numbered selection
+already settled them. If the user says "analyze only", switch to Mode 2.
 
 ---
 
@@ -456,23 +473,22 @@ Then read the Table of Contents section if present to map all chapters.
 
 ---
 
-## Step 4 — Ask purpose (Full Conversion only)
+## Step 4 — Infer purpose and depth (Full Conversion only)
 
-Before generating, ask the user:
+Infer `DEPTH` from the selected plan and the source; do not ask a separate
+purpose questionnaire:
+- `reference` — the selected plan is `skill-lite`, or the user chose
+  reference/lookup use or a narrow chapter scope.
+- `study` — a full `skill` conversion, or the user chose to apply or think
+  with the author's frameworks.
+Use the selected plan to weight what gets highlighted in the SKILL.md Core
+section. Record the inference in the final report. Ask one question only when
+the selected plan is genuinely ambiguous (for example, a full skill requested
+for only a few chapters).
 
-> "What should this skill help you do? (Pick one or more)
-> 1. Apply the author's frameworks while working
-> 2. Think with the author's mental models
-> 3. Reference specific chapters and concepts
-> 4. All of the above"
-
-Use the answer to weight what gets highlighted in the SKILL.md Core section.
-
-**Derive `DEPTH` from the answer (no extra prompt):**
-- Answer is **only** option 3 (reference) → `DEPTH=reference` — lean, fast-lookup chapters.
-- Answer includes option 1, 2, or 4 → `DEPTH=study` — deeper chapters with more worked detail, examples, and reasoning.
-
-`DEPTH` and `BOOK_TYPE` together set the per-chapter token budget in Step 7. Do **not** ask a separate "study vs reference" question — it is inferred here. (In Modes 2/3, where Step 4 is skipped, default `DEPTH=study`.)
+`DEPTH` and `BOOK_TYPE` together set the per-chapter token budget in Step 7. Do
+**not** ask a separate "study vs reference" question. (In Modes 2/3, where Step 4
+is skipped, default `DEPTH=study`.)
 
 ---
 

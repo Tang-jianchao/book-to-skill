@@ -37,12 +37,12 @@ become a toolkit — the rest are better kept as notes or a retrieval corpus.
                             skill / skill-lite only
                                    ▼
             ┌─────────────────────────── GENERATOR (agent, follows SKILL.md) ┐
-            │  Step 1.5  ask content type → BOOK_TYPE (technical | text)      │
-            │  Step 2/2.4 extract · triage gate · cost estimate · confirm     │
+            │  Step 1.5  infer content type → BOOK_TYPE (technical | text)    │
+            │  Step 2/2.4 extract · triage · one table · user picks · cost    │
             │  Step 2.6  REPL-style probing for large books (grep/sed, no     │
             │            full re-reads)                                        │
             │  Step 3    analyze structure (title, author, chapters, ToC)     │
-            │  Step 4    purpose → DEPTH (reference | study)                   │
+            │  Step 4    infer purpose → DEPTH (reference | study)             │
             │  Step 7    per-chapter summaries (budget = BOOK_TYPE × DEPTH)    │
             │  Step 8    glossary · patterns · cheatsheet (decision layer)    │
             │  Step 9/9.5 SKILL.md core + indexes                             │

@@ -20,10 +20,10 @@ breakdown/notes/<slug>/     topic-notes packs
 breakdown/rag/<slug>/       private retrieval corpora
 ```
 
-A run scans the inbox, shows what is still pending, converts the book you pick,
-and moves the source into the archive. The next scan cannot offer that book
-again. This is opt-in: without a config file, the converter behaves exactly as
-before.
+A run scans the inbox, preprocesses the pending books, presents one table of
+scores, evidence, and recommended plans, converts the books/plans you pick, and
+moves each source into the archive. The next scan cannot offer that book again.
+This is opt-in: without a config file, the converter behaves exactly as before.
 
 ## Configure
 

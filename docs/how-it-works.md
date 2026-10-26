@@ -27,7 +27,7 @@ scripts/extract.py <paths…> --mode <technical|text>
                │
                ▼
           Triage — deterministic score on extracted text
-          ask once: how often consulted? decisions or background?
+          infer demand · score all sources · one table · user picks numbers
                │
                ├── skill / skill-lite ──────────────┐
                │                                    │
